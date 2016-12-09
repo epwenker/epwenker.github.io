@@ -23,7 +23,7 @@
 				color: #fff;
 				text-align: center;
 				background-color: rgba(1,1,1,0.75);
-				margin-top: calc(50% - 100px);
+				margin-top: 200px;
     			padding-top: 20px;
 			}
 			#message {
@@ -86,7 +86,7 @@
 
 			var isPlaying = true;
 			var isThirdPerson = true;
-			var noClip = true;
+			var noClip = false;
 
 			var numLives =  3;
 			var score = 0;
@@ -326,7 +326,9 @@
 							moveRight = true;
 							break;
 						case 13: // enter
-							if(!isPlaying){
+							if(!isPlaying) {
+								if(numLives == 0) location.reload();
+
 								isPlaying = true;
 								document.getElementById('gameOverContainer').style.display = 'none';
 								resetPlayerPosition();
@@ -378,10 +380,14 @@
 				requestAnimationFrame(render);
 
 				if ( moveForward ) player.position.z -= 0.05;
+				if(player.position.z > -0.25) player.position.z = -0.25;
 				if ( moveBackward ) player.position.z += 0.05;
+				if(player.position.z < -(START_LENGTH+ROAD_LENGTH+MID_LENGTH+WATER_LENGTH+0.5)) handleDeath(false);
 
 				if ( moveLeft ) player.position.x -= 0.05;
+				if(player.position.x < 1) player.position.x = 1;
 				if ( moveRight ) player.position.x += 0.05;
+				if(player.position.x > GAME_WIDTH - 1) player.position.x = GAME_WIDTH - 1;
 
 				for(var i = 0; i < cars.length; i++) {
 					var car = cars[i];
@@ -397,9 +403,7 @@
 					}
 
 					if(!noClip && Math.abs(player.position.z - car.position.z) < 1 && Math.abs(player.position.x - car.position.x) < 1.6) {
-						isPlaying = false;
-						document.getElementById('gameOverContainer').style.display = 'block';
-						document.getElementById('lifeCounter').textContent = --numLives;
+						handleDeath(true);
 					}
 				}
 
@@ -422,11 +426,9 @@
 						onBoat = true;
 					}
 				}
-				// if(!noClip && !onBoat && player.position.z < (water.position.z + WATER_LENGTH/2) && player.position.z > (water.position.z -WATER_LENGTH/2)) {
-				// 	isPlaying = false;
-				// 	document.getElementById('gameOverContainer').style.display = 'block';
-				// 	document.getElementById('lifeCounter').textContent = --numLives;
-				// }
+				if(!noClip && !onBoat && player.position.z < (mirrorMesh.position.z + WATER_LENGTH/2) && player.position.z > (mirrorMesh.position.z -WATER_LENGTH/2)) {
+					handleDeath(true);
+				}
 
 				camera.position.x = player.position.x;
 				camera.position.y = player.position.y + (isThirdPerson ? 2.5 : -0.1);
@@ -441,6 +443,28 @@
 				water.render();
 
 				renderer.render(scene, camera);
+			}
+
+			function handleDeath(isDeath) {
+				isPlaying = false;
+				document.getElementById('gameOverContainer').style.display = 'block';
+				if(!isDeath) {
+					document.getElementById('message').textContent = 'You made it!';
+					score += 100;
+				}
+				else {
+					document.getElementById('message').textContent = 'You died';
+					document.getElementById('lifeCounter').textContent = --numLives;
+				}
+				document.getElementById('score').textContent = score;
+				if(numLives == 0) {
+					handleGameOver();
+				}
+			}
+
+			function handleGameOver() {
+				document.getElementById('message').textContent = 'Game Over';
+				document.getElementById('endScore').textContent = 'Your Score: ' + score;
 			}
 
 			function loadTextures(callback) {
@@ -527,6 +551,7 @@
 
 		<div id='gameOverContainer'>
 			<span id='message'>You Died</span>
+			<span id='endScore'></span>
 			<span id='continue'>Press Enter to Restart</span>
 		</div>
 	</body>
