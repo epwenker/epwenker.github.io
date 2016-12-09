@@ -59,11 +59,11 @@
 				right: 5px;
 			}
 		</style>
-		<script src='js/three.js'></script>
-		<script src="js/Mirror.js"></script>
-		<script src="js/WaterShader.js"></script>
-		<script src="js/MTLLoader.js"></script>
-		<script src="js/OBJLoader.js"></script>
+		<script src='https://epwenker.github.io/js/three.js'></script>
+		<script src="https://epwenker.github.io/js/Mirror.js"></script>
+		<script src="https://epwenker.github.io/js/WaterShader.js"></script>
+		<script src="https://epwenker.github.io/js/MTLLoader.js"></script>
+		<script src="https://epwenker.github.io/js/OBJLoader.js"></script>
 		<script>
 			// Constants
 			var GAME_WIDTH = 20;
@@ -78,11 +78,11 @@
 			var END_LENGTH = 2;
 			var END_DEPTH = 1;
 
-			var SKYBOX_URL = 'textures/skyboxsun25degtest.png';
-			var ROAD_URL = 'textures/asphalt.jpg';
-			var GRASS_URL = 'textures/grass.jpg';
-			var WOOD_URL = 'textures/wood.jpg';
-			var WATER_URL = 'textures/waternormals.jpg';
+			var SKYBOX_URL = 'https://epwenker.github.io/textures/skyboxsun25degtest.png';
+			var ROAD_URL = 'https://epwenker.github.io/textures/asphalt.jpg';
+			var GRASS_URL = 'https://epwenker.github.io/textures/grass.jpg';
+			var WOOD_URL = 'https://epwenker.github.io/textures/wood.jpg';
+			var WATER_URL = 'https://epwenker.github.io/textures/waternormals.jpg';
 
 			var isPlaying = true;
 			var isThirdPerson = true;
@@ -468,6 +468,8 @@
 			}
 
 			function loadTextures(callback) {
+				textureLoader.crossOrigin = '';
+				//textureLoader.setPath('https://epwenker.github.io/textures');
 				roadTexture = textureLoader.load(ROAD_URL, function() {
 					roadTexture.wrapS = roadTexture.wrapT = THREE.RepeatWrapping;
 					roadTexture.repeat.x = 4;
@@ -497,12 +499,12 @@
 
 			function loadModels() {
 				var mtlLoader = new THREE.MTLLoader();
-				mtlLoader.setPath( 'textures/' );
+				mtlLoader.setPath( 'https://epwenker.github.io/textures/' );
 				mtlLoader.load( 'car.mtl', function( materials ) {
 					materials.preload();
 					var objLoader = new THREE.OBJLoader();
 					objLoader.setMaterials(materials);
-					objLoader.setPath('models/');
+					objLoader.setPath('https://epwenker.github.io/models/');
 					objLoader.load( 'car.obj', function ( object ) {
 						object.scale.x = object.scale.y = object.scale.z = 0.5;
 						carModel = object;

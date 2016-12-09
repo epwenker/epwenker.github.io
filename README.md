@@ -5,9 +5,23 @@ Ethan Wenker - epwenker
 
 Description: This game is an implementation of the classic arcade game, Frogger, using Three.js.
 
-Thumbnail: https://raw.githubusercontent.com/epwenker/csc461-game/master/thumbnail.png
+Thumbnail: https://epwenker.github.io/thumbnail.png
 
 Screencast: 
+
+To Play Game:
+	
+	Go to https://epwenker.github.io
+
+	Or (requires Python):
+
+		Open command prompt and change working directory to the directory that contains index.html
+
+		Run "python -m SimpleHTTPServer" (Python 2.x) or "python -m http.server" (Python 3.x)
+
+		Open localhost:8000/index.html
+
+		Note: I was having problems with loading images hosted on my github.io page from a local file, but for whatever reason, when the server is running and the html file is accessed via localhost:8000/index.html, then the textures get loaded without a problem, even though the image URLs are all pointing to my github.io page. Sorry for any inconvenience this may cause.
 
 Controls:
 
@@ -16,6 +30,12 @@ Controls:
 	q - Toggle first/third person view
 
 	Esc - Toggle no-clip (collision detection)
+
+Extra Credit:
+
+	Track and display score
+
+	First-person view (press q to toggle 1st/3rd person)
 
 Credits:
 
