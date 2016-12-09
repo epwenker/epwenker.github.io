@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=utf-8>
+		<title>Frogger</title>
+		<style>
+			body {
+				margin: 0;
+				color: #000;
+			}
+			canvas {
+				width: 100%; height: 100%;
+			}
+
+			#gameOverContainer {
+				display: none;
+				position: absolute;
+				top: 0;
+				left: 0;
+				height: 80px;
+				width: 100%;
+				
+				color: #fff;
+				text-align: center;
+				background-color: rgba(1,1,1,0.75);
+				margin-top: calc(50% - 100px);
+    			padding-top: 20px;
+			}
+			#message {
+				font-size: 30px;
+				display: block;
+			}
+			#continue {
+				font-size: 18px;
+				display: block;
+			}
+
+			#lifeContainer,
+			#noClipContainer,
+			#scoreContainer,
+			#highScoreContainer {
+				position: absolute;
+			}
+
+			#lifeContainer {
+				top: 5px;
+				left: 5px;
+			}
+			#noClipContainer {
+				top: 25px;
+				left: 5px;
+			}
+			#scoreContainer {
+				top: 5px;
+				right: 5px;
+			}
+			#highScoreContainer {
+				top: 25px;
+				right: 5px;
+			}
+		</style>
+		<script src='js/three.js'></script>
+		<script src="js/Mirror.js"></script>
+		<script src="js/WaterShader.js"></script>
+		<script src="js/MTLLoader.js"></script>
+		<script src="js/OBJLoader.js"></script>
+		<script>
+			// Constants
+			var GAME_WIDTH = 20;
+			var ROAD_LENGTH = 10;
+			var ROAD_DEPTH = 1;
+			var WATER_LENGTH = 5;
+			var WATER_DEPTH = 0.5;
+			var START_LENGTH = 1;
+			var START_DEPTH = 1;
+			var MID_DEPTH = 1;
+			var MID_LENGTH = 1;
+			var END_LENGTH = 2;
+			var END_DEPTH = 1;
+
+			var SKYBOX_URL = 'textures/skyboxsun25degtest.png';
+			var ROAD_URL = 'textures/asphalt.jpg';
+			var GRASS_URL = 'textures/grass.jpg';
+			var WOOD_URL = 'textures/wood.jpg';
+			var WATER_URL = 'textures/waternormals.jpg';
+
+			var isPlaying = true;
+			var isThirdPerson = true;
+			var noClip = true;
+
+			var numLives =  3;
+			var score = 0;
+
+			var scene, camera, renderer;
+			var geometry, material, texture;
+			var player, road, water, endZone, cars = [], boats = [];
+			var light;
+
+			var textureLoader = new THREE.TextureLoader();
+			var roadTexture, grassTexture, frogTexture;
+
+			var objLoader = new THREE.OBJLoader();
+			var carModel, frogModel;
+
+			var moveForward = false;
+			var moveBackward = false;
+			var moveLeft = false;
+			var moveRight = false;
+			var moveUp = false;
+			var moveDown = false;
+
+			function resetPlayerPosition() {
+				player.position.x = GAME_WIDTH / 2;
+				player.position.y = 0;
+				player.position.z = -0.5;
+			}
+
+			// set up renderer
+			function initScene() {
+				scene = new THREE.Scene();
+				camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+				renderer = new THREE.WebGLRenderer();
+				renderer.setSize(window.innerWidth, window.innerHeight);
+				document.body.appendChild(renderer.domElement);
+			}
+
+			function initLights() {
+				scene.add(new THREE.AmbientLight(0x888888));
+				light = new THREE.DirectionalLight(0xffffbb, 1);
+				light.position.set(0, 1, -1);
+				scene.add(light);
+			}
+
+			function initSkybox() {
+				var cubeMap = new THREE.CubeTexture( [] );
+				cubeMap.format = THREE.RGBFormat;
+				var loader = new THREE.ImageLoader();
+				loader.load( SKYBOX_URL, function ( image ) {
+					var getSide = function ( x, y ) {
+						var size = 1024;
+						var canvas = document.createElement( 'canvas' );
+						canvas.width = size;
+						canvas.height = size;
+						var context = canvas.getContext( '2d' );
+						context.drawImage( image, - x * size, - y * size );
+						return canvas;
+					};
+					cubeMap.images[ 0 ] = getSide( 2, 1 ); // px
+					cubeMap.images[ 1 ] = getSide( 0, 1 ); // nx
+					cubeMap.images[ 2 ] = getSide( 1, 0 ); // py
+					cubeMap.images[ 3 ] = getSide( 1, 2 ); // ny
+					cubeMap.images[ 4 ] = getSide( 1, 1 ); // pz
+					cubeMap.images[ 5 ] = getSide( 3, 1 ); // nz
+					cubeMap.needsUpdate = true;
+
+					var cubeShader = THREE.ShaderLib[ 'cube' ];
+					cubeShader.uniforms[ 'tCube' ].value = cubeMap;
+					var skyBoxMaterial = new THREE.ShaderMaterial( {
+						fragmentShader: cubeShader.fragmentShader,
+						vertexShader: cubeShader.vertexShader,
+						uniforms: cubeShader.uniforms,
+						depthWrite: false,
+						side: THREE.BackSide
+					});
+					var skyBox = new THREE.Mesh(
+						new THREE.BoxGeometry( 10000, 10000, 10000 ),
+						skyBoxMaterial
+					);
+					scene.add(skyBox);
+				});
+			}
+
+			function initPlayer() {
+				player = frogModel;
+
+				player.traverse( function ( child ) {
+					if (child instanceof THREE.Mesh) {
+						child.material = frogTexture;
+					}
+				});
+				
+				player.scale.x = player.scale.y = player.scale.z = 0.25;
+				player.rotateY(Math.PI);
+
+
+				scene.add(player);
+				resetPlayerPosition();
+			}
+
+			function initRoad() {
+				var geometry = new THREE.BoxGeometry( GAME_WIDTH, ROAD_LENGTH, ROAD_DEPTH);
+				geometry.rotateX( - Math.PI / 2 );
+
+				material = new THREE.MeshPhongMaterial( { map: roadTexture } );
+				road = new THREE.Mesh(geometry, material);
+				scene.add(road);
+				road.position.x = GAME_WIDTH / 2;
+				road.position.y = -ROAD_DEPTH;
+				road.position.z = -ROAD_LENGTH / 2 - START_LENGTH;
+			}
+
+			function initWater() {
+				water = new THREE.Water( renderer, camera, scene, {
+					textureWidth: 512,
+					textureHeight: 512,
+					waterNormals: waterNormals,
+					alpha: 	1.0,
+					sunDirection: light.position.clone().normalize(),
+					sunColor: 0xffffff,
+					waterColor: 0x001e0f,
+					distortionScale: 50.0,
+				} );
+				mirrorMesh = new THREE.Mesh(
+					new THREE.PlaneBufferGeometry(GAME_WIDTH, WATER_LENGTH),
+					water.material
+				);
+				mirrorMesh.add( water );
+				mirrorMesh.rotation.x = - Math.PI * 0.5;
+				mirrorMesh.position.x = GAME_WIDTH / 2;
+				mirrorMesh.position.y = (-WATER_DEPTH / 2) - ROAD_DEPTH + 0.4;
+				mirrorMesh.position.z = (-WATER_LENGTH / 2) - MID_LENGTH - ROAD_LENGTH - START_LENGTH;
+				scene.add(mirrorMesh);
+			}
+
+			function initGrass() {
+				initStartZone();
+				initMidZone();
+				initEndZone();
+			}
+
+			function initStartZone() {
+				geometry = new THREE.BoxGeometry( GAME_WIDTH, START_LENGTH, START_DEPTH);
+				geometry.rotateX( - Math.PI / 2 );
+
+				material = new THREE.MeshPhongMaterial( { map: grassTexture } );
+				startZone = new THREE.Mesh(geometry, material);
+				scene.add(startZone);
+				startZone.position.x = GAME_WIDTH / 2;
+				startZone.position.y = -START_DEPTH;
+				startZone.position.z = -START_LENGTH / 2;
+			}
+
+			function initMidZone() {
+				geometry = new THREE.BoxGeometry( GAME_WIDTH, MID_LENGTH, MID_DEPTH);
+				geometry.rotateX( - Math.PI / 2 );
+
+				material = new THREE.MeshPhongMaterial( { map: grassTexture } );
+				midZone = new THREE.Mesh(geometry, material);
+				scene.add(midZone);
+				midZone.position.x = GAME_WIDTH / 2;
+				midZone.position.y = -MID_DEPTH;
+				midZone.position.z = (-MID_LENGTH / 2) - ROAD_LENGTH - START_LENGTH;
+			}
+
+			function initEndZone() {
+				geometry = new THREE.BoxGeometry( GAME_WIDTH, END_LENGTH, END_DEPTH);
+				geometry.rotateX( - Math.PI / 2 );
+
+				material = new THREE.MeshPhongMaterial( { map: grassTexture } );
+				endZone = new THREE.Mesh(geometry, material);
+				scene.add(endZone);
+				endZone.position.x = GAME_WIDTH / 2;
+				endZone.position.y = -END_DEPTH;
+				endZone.position.z = (-END_LENGTH / 2) - WATER_LENGTH - MID_LENGTH - ROAD_LENGTH - START_LENGTH;
+			}
+
+			function initCars() {
+				for(var i = 1; i <= 4; i++) {
+					var velocity = Math.random() * 0.01 + 0.025;
+					velocity *= (i % 2 == 0 ? -1 : 1);
+					for(var j = 1; j <= 3; j++) {
+						var car = carModel.clone();
+
+						car.rotateY(Math.PI / 2 * (velocity < 0 ? 1 : -1));
+						
+						car.velocity = velocity;
+
+						car.position.x = (GAME_WIDTH/3)*j;
+						car.position.y = 0;
+						car.position.z = (-ROAD_LENGTH/5)*i - START_LENGTH;
+
+						scene.add(car);
+						cars.push(car);
+					}
+				}
+			}
+
+			function initBoats() {
+				for(var i = 0; i < 5; i++) {
+					var velocity = Math.random() * 0.01 + 0.025;
+					velocity *= (i % 2 == 0 ? -1 : 1);
+					for(var j = 1; j <= 3; j++) {
+						geometry = new THREE.BoxGeometry(2, 0.5, 1);
+						material = new THREE.MeshPhongMaterial({ map: woodTexture });
+						var boat = new THREE.Mesh(geometry, material);
+						
+						boat.velocity = velocity;
+
+						boat.position.x = (GAME_WIDTH/3)*j - 1;
+						boat.position.y = -0.75;
+						boat.position.z = -i-0.5 - MID_LENGTH - ROAD_LENGTH - START_LENGTH;
+
+						scene.add(boat);
+						boats.push(boat);
+					}
+				}
+			}
+
+			
+			function initKeyListeners() {
+				var onKeyDown = function (event) {
+					switch (event.keyCode) {
+						case 38: // up
+						case 87: // w
+							moveForward = true;
+							break;
+						case 37: // left
+						case 65: // a
+							moveLeft = true; break;
+						case 40: // down
+						case 83: // s
+							moveBackward = true;
+							break;
+						case 39: // right
+						case 68: // d
+							moveRight = true;
+							break;
+						case 13: // enter
+							if(!isPlaying){
+								isPlaying = true;
+								document.getElementById('gameOverContainer').style.display = 'none';
+								resetPlayerPosition();
+								render();
+							}
+							break;
+						case 27: // escape
+							noClip = !noClip;
+							document.getElementById('noClip').textContent = noClip;
+							break;
+						case 81: // q
+							isThirdPerson = !isThirdPerson;
+							break;
+					}
+				};
+				var onKeyUp = function (event) {
+					switch(event.keyCode) {
+						case 38: // up
+						case 87: // w
+							moveForward = false;
+							break;
+						case 37: // left
+						case 65: // a
+							moveLeft = false;
+							break;
+						case 40: // down
+						case 83: // s
+							moveBackward = false;
+							break;
+						case 39: // right
+						case 68: // d
+							moveRight = false;
+							break;
+					}
+				};
+				document.addEventListener('keydown', onKeyDown, false);
+				document.addEventListener('keyup', onKeyUp, false);
+			}
+
+			function initHud() {
+				document.getElementById('lifeCounter').textContent = numLives;
+				document.getElementById('noClip').textContent = noClip;
+				document.getElementById('score').textContent = score;
+			}
+
+			function render() {
+				if(!isPlaying) return;
+
+				requestAnimationFrame(render);
+
+				if ( moveForward ) player.position.z -= 0.05;
+				if ( moveBackward ) player.position.z += 0.05;
+
+				if ( moveLeft ) player.position.x -= 0.05;
+				if ( moveRight ) player.position.x += 0.05;
+
+				for(var i = 0; i < cars.length; i++) {
+					var car = cars[i];
+					car.position.x += car.velocity;
+					if(car.velocity > 0) {
+						if(car.position.x > GAME_WIDTH) {
+							car.position.x = 0;
+						}
+					} else {
+						if(car.position.x < 0) {
+							car.position.x = GAME_WIDTH;
+						}
+					}
+
+					if(!noClip && Math.abs(player.position.z - car.position.z) < 1 && Math.abs(player.position.x - car.position.x) < 1.6) {
+						isPlaying = false;
+						document.getElementById('gameOverContainer').style.display = 'block';
+						document.getElementById('lifeCounter').textContent = --numLives;
+					}
+				}
+
+				var onBoat = false;
+				for(var i = 0; i < boats.length; i++) {
+					var boat = boats[i];
+					boat.position.x += boat.velocity;
+					if(boat.velocity > 0) {
+						if(boat.position.x > GAME_WIDTH) {
+							boat.position.x = 0;
+						}
+					} else {
+						if(boat.position.x < 0) {
+							boat.position.x = GAME_WIDTH;
+						}
+					}
+
+					if(!noClip && Math.abs(player.position.z - boat.position.z) < 0.75 && Math.abs(player.position.x - boat.position.x) < 1) {
+						player.position.x += boat.velocity;
+						onBoat = true;
+					}
+				}
+				// if(!noClip && !onBoat && player.position.z < (water.position.z + WATER_LENGTH/2) && player.position.z > (water.position.z -WATER_LENGTH/2)) {
+				// 	isPlaying = false;
+				// 	document.getElementById('gameOverContainer').style.display = 'block';
+				// 	document.getElementById('lifeCounter').textContent = --numLives;
+				// }
+
+				camera.position.x = player.position.x;
+				camera.position.y = player.position.y + (isThirdPerson ? 2.5 : -0.1);
+				camera.position.z = player.position.z + (isThirdPerson ? 5 : -0.3);
+
+				var lookAt = new THREE.Vector3(camera.position.x, camera.position.y- (isThirdPerson ? 2.5 : 0), camera.position.z-5.0);
+				camera.lookAt(lookAt);
+
+				// water
+				var time = performance.now() * 0.01;
+				water.material.uniforms.time.value += 1.0 / 60.0;
+				water.render();
+
+				renderer.render(scene, camera);
+			}
+
+			function loadTextures(callback) {
+				roadTexture = textureLoader.load(ROAD_URL, function() {
+					roadTexture.wrapS = roadTexture.wrapT = THREE.RepeatWrapping;
+					roadTexture.repeat.x = 4;
+					roadTexture.repeat.y = 4;
+					
+					grassTexture = textureLoader.load(GRASS_URL, function() {
+						grassTexture.wrapS = grassTexture.wrapT = THREE.RepeatWrapping;
+						grassTexture.repeat.x = 10;
+						grassTexture.repeat.y = 1;
+						
+						woodTexture = textureLoader.load(WOOD_URL, function() {
+							woodTexture.wrapS = woodTexture.wrapT = THREE.RepeatWrapping;
+							woodTexture.repeat.x = 2;
+							woodTexture.repeat.y = 1;
+						
+							waterNormals = textureLoader.load(WATER_URL, function() {
+								waterNormals.wrapS = waterNormals.wrapT = THREE.RepeatWrapping;
+								
+								frogTexture = new THREE.MeshPhongMaterial( { color: 0x006000 } );
+
+								callback();
+							});
+						});
+					});
+				});
+			}
+
+			function loadModels() {
+				var mtlLoader = new THREE.MTLLoader();
+				mtlLoader.setPath( 'textures/' );
+				mtlLoader.load( 'car.mtl', function( materials ) {
+					materials.preload();
+					var objLoader = new THREE.OBJLoader();
+					objLoader.setMaterials(materials);
+					objLoader.setPath('models/');
+					objLoader.load( 'car.obj', function ( object ) {
+						object.scale.x = object.scale.y = object.scale.z = 0.5;
+						carModel = object;
+
+						objLoader.load( 'frog.obj', function (object) {
+							object.traverse(function (child) {
+								if (child instanceof THREE.Mesh) {
+									child.material = frogTexture;
+								}
+							});
+
+							frogModel = object;
+
+							initGame();
+						});
+					});
+				});
+			}
+
+			function initGame() {
+				initScene();
+				initLights();
+				initSkybox();
+				initPlayer();
+				initRoad();
+				initWater();
+				initGrass();
+				initCars();
+				initBoats();
+
+				initKeyListeners();
+				initHud();
+
+				render();
+			}
+
+			function main() {
+				loadTextures(loadModels);
+			}
+		</script>
+	</head>
+	<body onload="main();">
+		<div id='lifeContainer'>Lives: <span id='lifeCounter'></span></div>
+		<div id='noClipContainer'>No Clip: <span id='noClip'></span></div>
+		<div id='scoreContainer'>Score: <span id='score'></span></div>
+
+		<div id='gameOverContainer'>
+			<span id='message'>You Died</span>
+			<span id='continue'>Press Enter to Restart</span>
+		</div>
+	</body>
+</html>
