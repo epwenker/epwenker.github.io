@@ -12,6 +12,8 @@ Screencast:
 To Play Game:
 	
 	Go to https://epwenker.github.io
+	
+		(you can check https://github.com/epwenker/epwenker.github.io to see that last commit is before deadline)
 
 	Or (requires Python):
 
