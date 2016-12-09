@@ -21,7 +21,7 @@ To Play Game:
 
 		Open localhost:8000/index.html
 
-		Note: I was having problems with loading images hosted on my github.io page from a local file, but for whatever reason, when the server is running and the html file is accessed via localhost:8000/index.html, then the textures get loaded without a problem, even though the image URLs are all pointing to my github.io page. Sorry for any inconvenience this may cause.
+Note: I was having problems with loading images hosted on my github.io page from a local file, but for whatever reason, when the server is running and the html file is accessed via localhost:8000/index.html, then the textures get loaded without a problem, even though the image URLs are all pointing to my github.io page. Sorry for any inconvenience this may cause.
 
 Controls:
 
